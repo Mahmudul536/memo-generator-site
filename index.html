@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Memo Generator</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body{
+font-family: Arial;
+background:#f2f4f8;
+padding:20px;
+}
+
+.container{
+max-width:1100px;
+margin:auto;
+background:white;
+padding:20px;
+border-radius:10px;
+box-shadow:0 0 10px rgba(0,0,0,0.1);
+}
+
+h2{text-align:center;}
+
+input{
+padding:10px;
+margin:5px;
+width:200px;
+}
+
+button{
+padding:10px;
+margin:5px;
+cursor:pointer;
+border:none;
+background:#007bff;
+color:white;
+border-radius:5px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:20px;
+}
+
+table,th,td{
+border:1px solid #ddd;
+text-align:center;
+padding:10px;
+}
+
+th{
+background:#f0f0f0;
+}
+
+.top{
+display:flex;
+flex-wrap:wrap;
+justify-content:space-between;
+}
+
+.section{
+margin-top:20px;
+}
+
+.total{
+text-align:right;
+font-size:20px;
+margin-top:10px;
+font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>🧾 Memo / Invoice Generator</h2>
+
+<div class="top">
+
+<div>
+<h3>Customer Info</h3>
+<input id="customer" placeholder="Customer Name">
+<input id="mobile" placeholder="Mobile">
+</div>
+
+<div>
+<h3>Add Product</h3>
+<input id="pname" placeholder="Product Name">
+<input id="price" type="number" placeholder="Price">
+<button onclick="addProduct()">Add Product</button>
+</div>
+
+</div>
+
+<div class="section">
+<h3>Product List</h3>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Price</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="productList"></tbody>
+</table>
+</div>
+
+<div class="section">
+<h3>Create Memo</h3>
+
+<select id="selectProduct"></select>
+<input id="qty" type="number" placeholder="Qty">
+<button onclick="addToCart()">Add</button>
+
+<table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Price</th>
+<th>Qty</th>
+<th>Total</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="cart"></tbody>
+</table>
+
+<div class="total">
+Grand Total: ৳ <span id="grand">0</span>
+</div>
+
+<button onclick="downloadPDF()">Download PDF</button>
+<button onclick="window.print()">Print</button>
+</div>
+
+</div>
+
+<script>
+
+let products = JSON.parse(localStorage.getItem("products")) || [];
+let cart = [];
+
+function save(){
+localStorage.setItem("products", JSON.stringify(products));
+}
+
+function addProduct(){
+let name = document.getElementById("pname").value;
+let price = document.getElementById("price").value;
+
+if(!name || !price) return alert("Fill all");
+
+products.push({
+id: Date.now(),
+name,
+price: Number(price)
+});
+
+save();
+renderProducts();
+}
+
+function renderProducts(){
+
+let list = document.getElementById("productList");
+let select = document.getElementById("selectProduct");
+
+list.innerHTML="";
+select.innerHTML="";
+
+products.forEach(p=>{
+
+list.innerHTML += `
+<tr>
+<td>${p.name}</td>
+<td>${p.price}</td>
+<td>
+<button onclick="edit(${p.id})">Edit</button>
+<button onclick="del(${p.id})">Delete</button>
+</td>
+</tr>`;
+
+select.innerHTML += `
+<option value="${p.id}">
+${p.name} - ৳${p.price}
+</option>`;
+});
+}
+
+function edit(id){
+let p = products.find(x=>x.id==id);
+
+let n = prompt("Name", p.name);
+let pr = prompt("Price", p.price);
+
+p.name=n;
+p.price=Number(pr);
+
+save();
+renderProducts();
+}
+
+function del(id){
+products = products.filter(p=>p.id!=id);
+save();
+renderProducts();
+}
+
+function addToCart(){
+
+let id = document.getElementById("selectProduct").value;
+let qty = Number(document.getElementById("qty").value);
+
+if(!qty) return alert("Qty needed");
+
+let p = products.find(x=>x.id==id);
+
+cart.push({
+name:p.name,
+price:p.price,
+qty,
+total:p.price*qty
+});
+
+renderCart();
+}
+
+function renderCart(){
+
+let c = document.getElementById("cart");
+c.innerHTML="";
+let total = 0;
+
+cart.forEach((item,i)=>{
+
+total += item.total;
+
+c.innerHTML += `
+<tr>
+<td>${item.name}</td>
+<td>${item.price}</td>
+<td>${item.qty}</td>
+<td>${item.total}</td>
+<td><button onclick="removeItem(${i})">X</button></td>
+</tr>`;
+});
+
+document.getElementById("grand").innerText = total;
+}
+
+function removeItem(i){
+cart.splice(i,1);
+renderCart();
+}
+
+function invoiceNo(){
+return "INV-"+Date.now();
+}
+
+function downloadPDF(){
+
+const { jsPDF } = window.jspdf;
+const doc = new jsPDF();
+
+let customer = document.getElementById("customer").value;
+let mobile = document.getElementById("mobile").value;
+
+doc.setFontSize(18);
+doc.text("INVOICE", 90, 20);
+
+doc.setFontSize(12);
+doc.text("Invoice No: " + invoiceNo(), 10, 40);
+doc.text("Customer: " + customer, 10, 50);
+doc.text("Mobile: " + mobile, 10, 60);
+
+let y = 80;
+
+cart.forEach(item=>{
+doc.text(
+`${item.name} | ${item.price} x ${item.qty} = ${item.total}`,
+10,y
+);
+y += 10;
+});
+
+doc.text("Total: ৳ " + document.getElementById("grand").innerText,10,y+10);
+
+doc.save("invoice.pdf");
+}
+
+renderProducts();
+
+</script>
+
+</body>
+</html>
